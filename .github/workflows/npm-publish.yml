@@ -1,0 +1,70 @@
+name: Node.js Package shoukaku-sources
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Clear npm cache
+        run: npm cache clean --force
+
+      - name: Delete node_modules and package-lock.json
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+  publish-gpr:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: https://registry.npmjs.org
+
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Clear npm cache
+        run: npm cache clean --force
+
+      - name: Delete node_modules and package-lock.json and dist
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          rm -rf dist
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Publish package
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_GITHUB_TOKEN}}

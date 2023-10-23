@@ -1,0 +1,21 @@
+{
+  "name": "shoukaku-sources",
+  "version": "1.0.0",
+  "description": "A collection of sources for Shoukaku",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "blacky",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.8.7",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "undici": "^5.26.5"
+  }
+}
