@@ -6,8 +6,16 @@
   "types": "./index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "prepublishOnly": "npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brblacky/shoukaku-sources.git"
+  },
+  "bugs": {
+    "url": "https://github.com/brblacky/shoukaku-sources/issues"
+  },
+  "homepage": "https://github.com/brblacky/shoukaku-sources#readme",
   "keywords": [],
   "author": "blacky",
   "license": "ISC",
