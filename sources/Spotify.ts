@@ -1,10 +1,10 @@
-import { fetch, request } from 'undici';
+import { request } from 'undici';
 
 type Config = {
     clientId: string;
     clientSecret: string;
-    market?: string;
 }
+
 
 export class Spotify {
     public static readonly REGEX = /(?:https:\/\/open\.spotify\.com\/|spotify:)(?:.+)?(track|playlist|album|artist)[\/:]([A-Za-z0-9]+)/;
@@ -18,18 +18,21 @@ export class Spotify {
 
     private expires: number;
 
-    constructor(config?: Config) {
+    constructor(config?: Config[], market?: string) {
 
-        if (config?.clientId && config?.clientSecret) {
-            this.auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
+        if (config) {
+            if (!Array.isArray(config)) throw new TypeError('config must be an array');
+            if (!config.length) throw new Error('config must not be empty');
+            if (!config.every(c => c.clientId && c.clientSecret)) throw new Error('config must have clientId and clientSecret');
+            const random = Math.floor(Math.random() * config.length);
+            this.auth = Buffer.from(`${config[random].clientId}:${config[random].clientSecret}`).toString('base64');
         } else {
             this.auth = '';
         }
-        this.market = config?.market ?? 'US';
+        this.market = market || 'US';
         this.token = '';
         this.expires = 0;
     }
-
     private async renewToken() {
         if (this.auth) {
             await this.getToken();
@@ -39,16 +42,18 @@ export class Spotify {
     }
     public async makeRequest(entrypoint: string): Promise<any> {
         if (!this.token || this.expires === 0 || Date.now() > this.expires) await this.renewToken();
-        const res = await fetch(`${Spotify.BASE_URL}${entrypoint}`, {
-            method: "GET",
+        const res = await request(`${Spotify.BASE_URL}${entrypoint}`, {
             headers: {
-                "Authorization": `Bearer ${this.token}`
+                "Authorization": this.token
             }
-        });
-        const data = await res.json();
-        return data;
+        }).then(r => r.body.json()) as any;
+        if (res.error) {
+            throw new Error(res.error.message);
+        }
+        return res;
     }
     public async getTrack(url: string): Promise<any> {
+        if (!url) throw new Error('spotify url is undefined');
         const [, type, id] = Spotify.REGEX.exec(url) as RegExpExecArray;
         const match = url.match(Spotify.REGEX);
         if (match) {
@@ -84,7 +89,6 @@ export class Spotify {
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
         }).then(r => r.body.json() as Promise<any>);
-
         this.token = `${token_type} ${access_token}`;
         this.expires = Date.now() + expires_in * 1000;
     }

@@ -29,6 +29,5 @@
     "exclude": [
         "node_modules",
         "**/*.test.ts",
-        "jest.config.ts"
     ],
 }

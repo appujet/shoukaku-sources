@@ -1,4 +1,4 @@
-import { fetch } from "undici";
+import { request } from "undici";
 
 
 type Config = {
@@ -7,54 +7,85 @@ type Config = {
 }
 
 export class AppleMusic {
-    public static readonly BASE_URL = "https://api.music.apple.com/v1";
-    public static readonly REGEX = /(?:https:\/\/music\.apple\.com\/)(?:.+)?(artist|album|music-video|playlist)\/([\w-.]+(\/)+[\w-.]+|[^&]+)\/([\w-.]+(\/)+[\w-.]+|[^&]+)/;
-    public static readonly REGEX_SONG_ONLY = /(?:https:\/\/music\.apple\.com\/)(?:.+)?(artist|album|music-video|playlist)\/([\w.-]+(\/)+[\w.-]+|[^&]+)\/([\w.-]+(\/)+[\w.-]+|[^&]+)(\?|&)([^=]+)=([\w.-]+(\/)+[\w.-]+|[^&]+)/;
+    public static readonly APPLE_MUSIC_REGEX = /^(?:https?:\/\/|)?(?:music\.)?apple\.com\/(?<storefront>[a-z]{2})\/(?<type>album|playlist|artist|music-video)(?:\/[^/]+)?\/(?<id>[^/?]+)(?:\?i=(?<albumtrackid>\d+))?/;
+    private static readonly RENEW_URL = 'https://music.apple.com';
+    private static readonly SCRIPTS_REGEX = /<script type="module" .+ src="(?<endpoint>\/assets\/index.+\.js)">/g;
+    private static readonly TOKEN_REGEX = /const \w{2}="(?<token>ey[\w.-]+)"/;
+
+    private static readonly USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36';
+
     private token: string | null;
     public countryCode: string = "us";
+    private renewDate: number = 0;
     constructor(config: Config) {
-        if (!config.token) throw new Error("No apple music token provided");
+        if (config.token) {
+            this.token = config.token;
+        } else {
+            this.token = null;
+        }
         if (config.countryCode) this.countryCode = config.countryCode;
-        this.token = config.token;
-    }
-    public setToken(token: string): void {
-        this.token = token;
-    }
-    public async makeRequest(entrypoint: string): Promise<any> {
-        const res = await fetch(`${AppleMusic.BASE_URL}${entrypoint}`, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${this.token}`,
-                "Origin": "https://music.apple.com"
-            }
-        });
-        const data = await res.json();
-        return data;
     }
 
+    private async makeRequest<T>(endpoint: string, storefront: string): Promise<any> {
+        if (!this.token || this.renewDate === 0 || Date.now() > this.renewDate) await this.getAnonymousToken();
+
+        const res = await request(`https://api.music.apple.com/v1/catalog/${storefront}/${endpoint}`, {
+            headers: {
+                'User-Agent': AppleMusic.USER_AGENT,
+                Authorization: `Bearer ${this.token}`,
+                'Origin': 'getAnonymousToken'
+            }
+        });
+        if (res.statusCode === 200) {
+            return res.body.json() as T;
+        } else {
+            return new Error(`Apple Music API returned ${await res.body.json()}`);
+        }
+    }
+    private async getAnonymousToken() {
+        const html: string = await request(AppleMusic.RENEW_URL + '/us/browse', {
+            headers: {
+                'User-Agent': AppleMusic.USER_AGENT
+            },
+        }).then(r => r.body.text());
+
+        const scriptsMatch = [...html.matchAll(AppleMusic.SCRIPTS_REGEX)];
+
+        if (!scriptsMatch.length) {
+            throw new Error('Could not get Apple Music token scripts!');
+        }
+        for (const scriptMatch of scriptsMatch) {
+            const script = await request(`${AppleMusic.RENEW_URL}${scriptMatch[1]}`, {
+                headers: {
+                    'User-Agent': AppleMusic.USER_AGENT
+                }
+            }).then(r => r.body.text());
+            const tokenMatch = script.match(AppleMusic.TOKEN_REGEX);
+            if (tokenMatch) {
+                this.token = tokenMatch.groups?.['token'] ?? null;
+                break;
+            }
+        }
+        if (!this.token) {
+            throw new Error('Could not get Apple Music token!');
+        }
+        this.renewDate = JSON.parse(Buffer.from(this.token.split('.')[1], 'base64').toString()).exp * 1000;
+    }
     public async getTrack(url: string): Promise<any> {
-        let type;
-        let id;
-        let is_track = false;
-        if (!AppleMusic.REGEX_SONG_ONLY.exec(url) || AppleMusic.REGEX_SONG_ONLY.exec(url) == null) {
-            const extract = AppleMusic.REGEX.exec(url) || [];
-            id = extract[4];
-            type = extract[1];
-        } else {
-            const extract = AppleMusic.REGEX_SONG_ONLY.exec(url) || [];
-            id = extract[8];
-            type = extract[1];
-            is_track = true;
+        const appleMusicMatch = url.match(AppleMusic.APPLE_MUSIC_REGEX);
+        if (!appleMusicMatch || !appleMusicMatch.groups) return null;
+        const storefront = appleMusicMatch.groups['storefront'];
+        switch (appleMusicMatch.groups['type']) {
+            case 'music-video':
+                return this.makeRequest<any>(`music-videos/${appleMusicMatch.groups['id']}`, storefront);
+            case 'album':
+                return this.makeRequest<any>(`albums/${appleMusicMatch.groups['id']}`, storefront);
+            case 'playlist':
+                return this.makeRequest<any>(`playlists/${appleMusicMatch.groups['id']}`, storefront);
+            case 'artist':
+                return this.makeRequest<any>(`artists/${appleMusicMatch.groups['id']}`, storefront);
+            default:
+                return null;
         }
-        if (!type || !id) return null;
-        let endpoint: string;
-        if (is_track) {
-            endpoint = `/catalog/${this.countryCode}/songs/${id}`;
-        } else {
-            endpoint = `/catalog/${this.countryCode}/${type}s/${id}`;
-        }
-        const data = await this.makeRequest(endpoint);
-        return data;
     }
 }
