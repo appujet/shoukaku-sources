@@ -13,7 +13,7 @@ export class Spotify {
 
     private readonly auth: string;
 
-    private readonly market: string;
+    public readonly market: string;
     private token: string;
 
     private expires: number;
