@@ -7,7 +7,7 @@
         "module": "commonjs",
         "rootDir": "./",
         "declaration": true,
-        "outDir": "./dist",
+        "outDir": "./build",
         "esModuleInterop": true,
         "resolveJsonModule": true,
         "forceConsistentCasingInFileNames": true,

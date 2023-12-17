@@ -1,9 +1,9 @@
 {
   "name": "shoukaku-sources",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A collection of sources for Shoukaku",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
@@ -19,9 +19,6 @@
   "keywords": [],
   "author": "blacky",
   "license": "ISC",
-  "engines": {
-    "node": ">=14.x.x"
-  },
   "devDependencies": {
     "@types/node": "^20.8.7",
     "typescript": "^5.2.2"
